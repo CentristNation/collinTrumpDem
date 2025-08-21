@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electoral Analytics: Proposed CD 3 (Collin County Part)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 320px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            overflow-y: auto;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #007bff;
+        }
+        
+        .main-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin: 0;
+            line-height: 1.3;
+        }
+        
+        .subtitle {
+            font-size: 13px;
+            color: #666;
+            margin: 3px 0 0 0;
+        }
+        
+        .status-message {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 13px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .section {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .selection-tools {
+            text-align: center;
+        }
+        
+        .tool-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 3px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+        
+        .tool-button:hover {
+            background: #0056b3;
+        }
+        
+        .tool-button.active {
+            background: #28a745;
+        }
+        
+        .filter-item {
+            margin-bottom: 12px;
+        }
+        
+        .filter-label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .party-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 6px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .dem-icon { color: #0066cc; }
+        .rep-icon { color: #cc0000; }
+        
+        .filter-slider {
+            width: 100%;
+            margin: 3px 0;
+        }
+        
+        .filter-value {
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            padding: 3px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+        }
+        
+        .summary-label {
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .summary-value {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 60px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            font-size: 12px;
+        }
+        
+        .legend h4 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 13px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+        }
+        
+        .legend-color {
+            width: 18px;
+            height: 12px;
+            margin-right: 6px;
+            border: 1px solid #ccc;
+        }
+        
+        .credit {
+            position: absolute;
+            bottom: 10px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            color: #666;
+            z-index: 1000;
+        }
+        
+        .mode-info {
+            font-size: 10px;
+            margin-top: 5px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .precinct-filter {
+            margin-bottom: 8px;
+        }
+        
+        .precinct-dropdown {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+            font-size: 12px;
+            max-height: 150px;
+        }
+        
+        .buffer-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        
+        .buffer-input {
+            flex: 1;
+        }
+        
+        .buffer-value {
+            font-size: 11px;
+            color: #666;
+            min-width: 60px;
+        }
+        
+        .buffer-active {
+            background: #28a745 !important;
+            color: white !important;
+        }
+        
+        .buffer-active:hover {
+            background: #218838 !important;
+        }
+        
+        .buffer-mode-active {
+            border: 3px solid #28a745 !important;
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.5) !important;
+        }
+
+        .layer-control {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .layer-toggle {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .layer-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .point-legend {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .point-legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+        }
+
+        .point-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .dem-point { background-color: #0066cc; }
+        .rep-point { background-color: #cc0000; }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header">
+                <h1 class="main-title">Electoral Analytics: Proposed CD 3 (Collin County Part)</h1>
+                <p class="subtitle">Analysis by Ifte Islam PhD</p>
+            </div>
+            
+            <div class="status-message" id="statusMessage">
+                Loading data...
+            </div>
+
+            <div class="section" id="layerSection">
+                <div class="section-title">Layer Controls</div>
+                <div class="layer-control">
+                    <span style="font-size: 12px; font-weight: 500;">Point Layer</span>
+                    <label class="layer-toggle">
+                        <input type="checkbox" id="pointLayerToggle" checked onchange="togglePointLayer()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="section" id="selectionSection">
+                <div class="section-title">Selection Tools</div>
+                <div class="selection-tools">
+                    <button class="tool-button" onclick="enableShiftClick()">Multi-Select</button>
+                    <button class="tool-button" onclick="selectAllVisible()">Select All Visible</button>
+                    <button class="tool-button" id="clearSelection" onclick="clearAllSelections()">Clear All</button>
+                    <div class="mode-info" id="modeInfo">Click polygons to select</div>
+                    <div style="font-size: 10px; color: #888; margin-top: 5px; text-align: center;">
+                        Hold Shift + Click for multiple selection
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section" id="precinctSection">
+                <div class="section-title">Precinct Filter</div>
+                <div class="precinct-filter">
+                    <select class="precinct-dropdown" id="precinctFilter" multiple size="6">
+                        <option value="">Loading precincts...</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    <button class="tool-button" onclick="selectAllPrecincts()" style="flex: 1; margin: 0;">All</button>
+                    <button class="tool-button" onclick="selectNoPrecincts()" style="flex: 1; margin: 0;">None</button>
+                </div>
+            </div>
+            
+            <div class="section" id="filterSection">
+                <div class="section-title">Filters (Range %)</div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">
+                        <div class="party-icon dem-icon">D</div>
+                        Democratic %
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="demSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="demSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="demValue">0% - 100%</div>
+                </div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">
+                        <div class="party-icon rep-icon">R</div>
+                        Republican %
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="repSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="repSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="repValue">0% - 100%</div>
+                </div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">Turnout %</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="turnoutSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="turnoutSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="turnoutValue">0% - 100%</div>
+                </div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">White %</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="whiteSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="whiteSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="whiteValue">0% - 100%</div>
+                </div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">Black %</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="blackSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="blackSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="blackValue">0% - 100%</div>
+                </div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">Hispanic %</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="hispanicSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="hispanicSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="hispanicValue">0% - 100%</div>
+                </div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">Asian %</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="asianSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="asianSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="asianValue">0% - 100%</div>
+                </div>
+                
+                <div class="filter-item">
+                    <div class="filter-label">Anti-Trump %</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" class="filter-slider" id="antitrumpSliderMin" min="0" max="100" value="0" style="flex: 1;">
+                        <span style="font-size: 10px;">to</span>
+                        <input type="range" class="filter-slider" id="antitrumpSliderMax" min="0" max="100" value="100" style="flex: 1;">
+                    </div>
+                    <div class="filter-value" id="antitrumpValue">0% - 100%</div>
+                </div>
+            </div>
+            
+            <div class="section" id="summarySection">
+                <div class="section-title">Selected Polygons Summary</div>
+                <div id="summaryContent">
+                    <p style="color: #666; text-align: center; font-size: 12px;">Select areas to view data</p>
+                </div>
+            </div>
+
+            <div class="section" id="voterExportSection">
+                <div class="section-title">Voter Export</div>
+                <div id="voterExportContent">
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; font-size: 12px; margin-bottom: 5px;">Min Democratic Votes:</label>
+                        <select id="demVoteThreshold" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px;">
+                            <option value="1">1 or more</option>
+                            <option value="2">2 or more</option>
+                            <option value="3">3 or more</option>
+                            <option value="4">4 or more</option>
+                            <option value="5">5 or more</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: block; font-size: 12px; margin-bottom: 5px;">Voted in 2024:</label>
+                        <select id="vote24Filter" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px;">
+                            <option value="all">All voters</option>
+                            <option value="yes">Yes - voted in 2024</option>
+                            <option value="no">No - did not vote in 2024</option>
+                        </select>
+                    </div>
+                    <button class="tool-button" onclick="exportVoters()" style="width: 100%; margin: 0;">
+                        Download Voters CSV
+                    </button>
+                    <div id="voterStats" style="font-size: 11px; color: #666; margin-top: 8px; text-align: center;">
+                        Loading voter data...
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="legend" id="legend">
+                <h4>Democratic %</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #8b0000;"></div>
+                    <span>0-20%</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #dc143c;"></div>
+                    <span>20-40%</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ff6b6b;"></div>
+                    <span>40-49%</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #4dabf7;"></div>
+                    <span>50-60%</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #1864ab;"></div>
+                    <span>60%+</span>
+                </div>
+                <div class="point-legend">
+                    <h4>Points</h4>
+                    <div class="point-legend-item">
+                        <div class="point-legend-dot dem-point"></div>
+                        <span>Democratic</span>
+                    </div>
+                    <div class="point-legend-item">
+                        <div class="point-legend-dot rep-point"></div>
+                        <span>Republican</span>
+                    </div>
+                </div>
+            </div>
+            <div class="credit">Analysis by Ifte Islam PhD</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script>
+        let map, geoJsonLayer, pointLayer, selectedFeatures = [];
+        let originalData = null;
+        let pointData = null;
+        let voterData = null;
+        let selectedPrecincts = new Set();
+        let pointLayerVisible = true;
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                updateStatus('Initializing...');
+                initMap();
+            }, 100);
+            
+            setTimeout(() => {
+                if (!originalData) {
+                    updateStatus('Loading propcol.geojson...');
+                    loadGeoJSONFromFile();
+                }
+                if (!voterData) {
+                    loadVoterData();
+                }
+                if (!pointData) {
+                    loadPointData();
+                }
+            }, 1000);
+        });
+
+        // Initialize map
+        function initMap() {
+            try {
+                updateStatus('Setting up map...');
+                
+                map = L.map('map').setView([33.2148, -96.8435], 10); // Collin County center
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+
+                map.on('click', function(e) {
+                    if (isBufferMode) {
+                        createBufferSelection(e.latlng);
+                    }
+                });
+
+                updateStatus('Map ready, loading data...');
+                setupDrawingControls();
+                setupBufferControls();
+                
+            } catch (error) {
+                updateStatus('Error initializing map: ' + error.message);
+            }
+        }
+
+        // Load point data
+        async function loadPointData() {
+            updateStatus('Loading collat.geojson...');
+            
+            try {
+                const response = await fetch('collat.geojson');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const geojson = await response.json();
+                processPointData(geojson);
+                updateStatus('Point data loaded successfully!');
+                
+            } catch (error) {
+                updateStatus('Error loading collat.geojson: ' + error.message);
+                console.error('Failed to load collat.geojson:', error);
+            }
+        }
+
+        // Process point data
+        function processPointData(geojson) {
+            try {
+                if (!geojson || !geojson.features || geojson.features.length === 0) {
+                    throw new Error('Invalid or empty point GeoJSON data');
+                }
+                
+                pointData = geojson;
+                loadPointLayer(geojson);
+                
+                const pointCount = geojson.features.length;
+                const demPoints = geojson.features.filter(f => f.properties.party === 'Dem').length;
+                const repPoints = geojson.features.filter(f => f.properties.party === 'Rep').length;
+                
+                console.log(`Loaded ${pointCount} points (${demPoints} Dem, ${repPoints} Rep)`);
+                
+            } catch (error) {
+                updateStatus('Error processing point data: ' + error.message);
+            }
+        }
+
+        // Load point layer
+        function loadPointLayer(geojson) {
+            if (pointLayer) {
+                map.removeLayer(pointLayer);
+            }
+
+            pointLayer = L.geoJSON(geojson, {
+                pointToLayer: function(feature, latlng) {
+                    const party = feature.properties.party;
+                    const color = party === 'Dem' ? '#0066cc' : '#cc0000';
+                    
+                    return L.circleMarker(latlng, {
+                        radius: 6,
+                        fillColor: color,
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                },
+                onEachFeature: function(feature, layer) {
+                    // Create tooltip content showing all properties
+                    let tooltipContent = '<div style="max-width: 200px;">';
+                    
+                    Object.keys(feature.properties).forEach(key => {
+                        const value = feature.properties[key];
+                        tooltipContent += `<strong>${key}:</strong> ${value}<br>`;
+                    });
+                    
+                    tooltipContent += '</div>';
+                    
+                    layer.bindTooltip(tooltipContent, {
+                        permanent: false,
+                        direction: 'top',
+                        offset: [0, -10]
+                    });
+
+                    // Click handler for points
+                    layer.on('click', function(e) {
+                        layer.openTooltip();
+                        L.DomEvent.stopPropagation(e);
+                    });
+                }
+            });
+
+            if (pointLayerVisible) {
+                pointLayer.addTo(map);
+            }
+        }
+
+        // Toggle point layer visibility
+        function togglePointLayer() {
+            const toggle = document.getElementById('pointLayerToggle');
+            pointLayerVisible = toggle.checked;
+            
+            if (pointLayer) {
+                if (pointLayerVisible) {
+                    pointLayer.addTo(map);
+                } else {
+                    map.removeLayer(pointLayer);
+                }
+            }
+        }
+
+        // Count points in selected polygons
+        function countPointsInSelection() {
+            if (!pointData || selectedFeatures.length === 0) {
+                return { dem: 0, rep: 0, total: 0 };
+            }
+
+            let demCount = 0;
+            let repCount = 0;
+
+            pointData.features.forEach(point => {
+                if (point.geometry && point.geometry.coordinates) {
+                    const pointCoords = point.geometry.coordinates;
+                    const pointLatlng = [pointCoords[1], pointCoords[0]]; // [lat, lng]
+                    
+                    // Check if point is in any selected polygon
+                    const isInSelection = selectedFeatures.some(sf => {
+                        return isPointInPolygon(pointLatlng, sf.feature);
+                    });
+                    
+                    if (isInSelection) {
+                        if (point.properties.party === 'Dem') {
+                            demCount++;
+                        } else if (point.properties.party === 'Rep') {
+                            repCount++;
+                        }
+                    }
+                }
+            });
+
+            return {
+                dem: demCount,
+                rep: repCount,
+                total: demCount + repCount
+            };
+        }
+
+        // Check if point is inside polygon
+        function isPointInPolygon(point, polygonFeature) {
+            if (!polygonFeature.geometry || polygonFeature.geometry.type !== 'Polygon') {
+                return false;
+            }
+            
+            try {
+                const coords = polygonFeature.geometry.coordinates[0];
+                const x = point[1]; // longitude
+                const y = point[0]; // latitude
+                
+                let inside = false;
+                for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
+                    const xi = coords[i][0], yi = coords[i][1];
+                    const xj = coords[j][0], yj = coords[j][1];
+                    
+                    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                        inside = !inside;
+                    }
+                }
+                return inside;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Setup drawing controls
+        function setupDrawingControls() {
+            try {
+                if (typeof L.Draw === 'undefined') {
+                    setupSimpleSelection();
+                    return;
+                }
+                
+                drawnItems = new L.FeatureGroup();
+                map.addLayer(drawnItems);
+
+                drawControl = new L.Control.Draw({
+                    position: 'topright',
+                    draw: {
+                        polygon: {
+                            allowIntersection: false,
+                            drawError: {
+                                color: '#e1e100',
+                                message: '<strong>Error:</strong> shape edges cannot cross!'
+                            },
+                            shapeOptions: {
+                                color: '#ff7800',
+                                fillOpacity: 0.3
+                            }
+                        },
+                        rectangle: {
+                            shapeOptions: {
+                                color: '#ff7800',
+                                fillOpacity: 0.3
+                            }
+                        },
+                        circle: {
+                            shapeOptions: {
+                                color: '#ff7800',
+                                fillOpacity: 0.3
+                            }
+                        },
+                        polyline: false,
+                        marker: false,
+                        circlemarker: false
+                    },
+                    edit: {
+                        featureGroup: drawnItems,
+                        remove: true
+                    }
+                });
+                map.addControl(drawControl);
+
+                // Handle drawing events
+                map.on(L.Draw.Event.CREATED, function(e) {
+                    // Clear previous selections
+                    drawnItems.clearLayers();
+                    selectedFeatures = [];
+                    
+                    const layer = e.layer;
+                    drawnItems.addLayer(layer);
+                    selectFeaturesInDrawnArea(layer);
+                    resetDrawingMode();
+                });
+
+                map.on(L.Draw.Event.DELETED, function(e) {
+                    selectedFeatures = [];
+                    updateSummary();
+                    updateVoterStats();
+                    resetHighlight();
+                });
+
+                // Hide the default toolbar initially
+                document.querySelector('.leaflet-draw').style.display = 'none';
+                
+            } catch (error) {
+                setupSimpleSelection();
+            }
+        }
+
+        // Start rectangle selection
+        function startRectangleSelection() {
+            if (!drawControl) {
+                alert('Drawing tools not available');
+                return;
+            }
+
+            clearActiveDrawingMode();
+            activeDrawingMode = 'rectangle';
+            
+            const rectangleBtn = document.getElementById('rectangleBtn');
+            rectangleBtn.classList.add('active');
+            rectangleBtn.textContent = 'Drawing...';
+            
+            const modeInfo = document.getElementById('modeInfo');
+            modeInfo.textContent = 'Click and drag to draw rectangle';
+            modeInfo.style.fontWeight = 'bold';
+            modeInfo.style.color = '#28a745';
+
+            // Start rectangle drawing
+            const rectangleDrawer = new L.Draw.Rectangle(map, {
+                shapeOptions: {
+                    color: '#ff7800',
+                    fillOpacity: 0.3,
+                    weight: 2
+                }
+            });
+            rectangleDrawer.enable();
+        }
+
+        // Start polygon selection
+        function startPolygonSelection() {
+            if (!drawControl) {
+                alert('Drawing tools not available');
+                return;
+            }
+
+            clearActiveDrawingMode();
+            activeDrawingMode = 'polygon';
+            
+            const polygonBtn = document.getElementById('polygonBtn');
+            polygonBtn.classList.add('active');
+            polygonBtn.textContent = 'Drawing...';
+            
+            const modeInfo = document.getElementById('modeInfo');
+            modeInfo.textContent = 'Click to add points, double-click to finish';
+            modeInfo.style.fontWeight = 'bold';
+            modeInfo.style.color = '#28a745';
+
+            // Start polygon drawing
+            const polygonDrawer = new L.Draw.Polygon(map, {
+                allowIntersection: false,
+                shapeOptions: {
+                    color: '#ff7800',
+                    fillOpacity: 0.3,
+                    weight: 2
+                }
+            });
+            polygonDrawer.enable();
+        }
+
+        // Clear active drawing mode
+        function clearActiveDrawingMode() {
+            if (isBufferMode) {
+                toggleBufferMode();
+            }
+
+            // Reset all drawing buttons
+            const rectangleBtn = document.getElementById('rectangleBtn');
+            const polygonBtn = document.getElementById('polygonBtn');
+            
+            if (rectangleBtn) {
+                rectangleBtn.classList.remove('active');
+                rectangleBtn.textContent = 'Rectangle';
+            }
+            
+            if (polygonBtn) {
+                polygonBtn.classList.remove('active');
+                polygonBtn.textContent = 'Polygon';
+            }
+
+            activeDrawingMode = null;
+        }
+
+        // Reset drawing mode after completing a drawing
+        function resetDrawingMode() {
+            clearActiveDrawingMode();
+            
+            const modeInfo = document.getElementById('modeInfo');
+            modeInfo.textContent = 'Click polygons to select';
+            modeInfo.style.fontWeight = 'normal';
+            modeInfo.style.color = '#666';
+        }
+
+        function setupSimpleSelection() {
+            const modeInfo = document.getElementById('modeInfo');
+            if (modeInfo) {
+                modeInfo.textContent = 'Click individual polygons to select them';
+            }
+        }
+
+        // Setup buffer controls
+        function setupBufferControls() {
+            const bufferRange = document.getElementById('bufferRange');
+            const bufferValue = document.getElementById('bufferValue');
+            
+            if (bufferRange && bufferValue) {
+                bufferRange.addEventListener('input', function() {
+                    bufferRadius = parseInt(this.value);
+                    bufferValue.textContent = bufferRadius + ' miles';
+                    
+                    if (isBufferMode) {
+                        const modeInfo = document.getElementById('modeInfo');
+                        if (modeInfo) {
+                            modeInfo.textContent = `Click anywhere to create ${bufferRadius} mile buffer`;
+                        }
+                        updateStatus(`Buffer mode ON - ${bufferRadius} miles`);
+                    }
+                });
+                
+                bufferValue.textContent = bufferRadius + ' miles';
+            }
+        }
+
+        // Toggle buffer mode
+        function toggleBufferMode() {
+            // Clear other drawing modes first
+            if (activeDrawingMode) {
+                clearActiveDrawingMode();
+            }
+
+            isBufferMode = !isBufferMode;
+            const bufferBtn = document.getElementById('bufferBtn');
+            const bufferControls = document.getElementById('bufferControls');
+            const modeInfo = document.getElementById('modeInfo');
+            const mapContainer = document.getElementById('map');
+            
+            if (isBufferMode) {
+                bufferBtn.classList.add('buffer-active');
+                bufferBtn.textContent = 'Exit Buffer Mode';
+                bufferControls.style.display = 'flex';
+                modeInfo.textContent = `Click anywhere to create ${bufferRadius} mile buffer`;
+                modeInfo.style.fontWeight = 'bold';
+                modeInfo.style.color = '#28a745';
+                map.getContainer().style.cursor = 'crosshair';
+                mapContainer.classList.add('buffer-mode-active');
+                updateStatus(`Buffer mode ON - ${bufferRadius} miles`);
+                
+                if (geoJsonLayer) {
+                    geoJsonLayer.eachLayer(function(layer) {
+                        layer.off('click');
+                    });
+                }
+            } else {
+                bufferBtn.classList.remove('buffer-active');
+                bufferBtn.textContent = 'Buffer Select';
+                bufferControls.style.display = 'none';
+                modeInfo.textContent = 'Click polygons to select';
+                modeInfo.style.fontWeight = 'normal';
+                modeInfo.style.color = '#666';
+                map.getContainer().style.cursor = '';
+                mapContainer.classList.remove('buffer-mode-active');
+                updateStatus('Individual selection mode');
+                
+                if (geoJsonLayer) {
+                    geoJsonLayer.eachLayer(function(layer) {
+                        if (layer.originalClickHandler) {
+                            layer.on('click', layer.originalClickHandler);
+                        }
+                    });
+                }
+            }
+        }
+
+        // Create buffer selection
+        function createBufferSelection(latlng) {
+            resetHighlight();
+            
+            if (drawnItems) {
+                drawnItems.clearLayers();
+            }
+            
+            const radiusInDegrees = bufferRadius / 69;
+            
+            const bufferCircle = L.circle(latlng, {
+                radius: bufferRadius * 1609.34,
+                color: '#ff7800',
+                fillColor: '#ff7800',
+                fillOpacity: 0.3,
+                weight: 3,
+                opacity: 0.8
+            });
+            
+            bufferCircle.addTo(map);
+            
+            if (drawnItems) {
+                drawnItems.addLayer(bufferCircle);
+            }
+            
+            selectFeaturesInBuffer(latlng, radiusInDegrees);
+        }
+
+        // Select features in buffer
+        function selectFeaturesInBuffer(centerPoint, radiusInDegrees) {
+            selectedFeatures = [];
+            
+            if (!geoJsonLayer) {
+                updateStatus('No map data available');
+                return;
+            }
+
+            let selectedCount = 0;
+
+            geoJsonLayer.eachLayer(function(layer) {
+                const feature = layer.feature;
+                
+                if (isFeatureInBuffer(feature, centerPoint, radiusInDegrees)) {
+                    selectedFeatures.push({feature: feature, layer: layer});
+                    layer.setStyle(highlightStyle(feature));
+                    selectedCount++;
+                } else {
+                    layer.setStyle(style(feature));
+                }
+            });
+            
+            updateSummary();
+            updateStatus(`Selected ${selectedCount} areas within ${bufferRadius} miles`);
+            
+            if (selectedCount === 0) {
+                updateStatus(`No areas found within ${bufferRadius} miles - try larger radius`);
+            }
+        }
+
+        // Check if feature is in buffer
+        function isFeatureInBuffer(feature, centerPoint, radiusInDegrees) {
+            if (!feature.geometry || !feature.geometry.coordinates) {
+                return false;
+            }
+            
+            try {
+                if (feature.geometry.type === 'Polygon') {
+                    const coords = feature.geometry.coordinates[0];
+                    let totalLat = 0, totalLng = 0, validPoints = 0;
+                    
+                    for (let i = 0; i < coords.length - 1; i++) {
+                        const pointLng = coords[i][0];
+                        const pointLat = coords[i][1];
+                        
+                        totalLat += pointLat;
+                        totalLng += pointLng;
+                        validPoints++;
+                        
+                        const distance = Math.sqrt(
+                            Math.pow(pointLat - centerPoint.lat, 2) + 
+                            Math.pow(pointLng - centerPoint.lng, 2)
+                        );
+                        
+                        if (distance <= radiusInDegrees) {
+                            return true;
+                        }
+                    }
+                    
+                    if (validPoints > 0) {
+                        const centroidLat = totalLat / validPoints;
+                        const centroidLng = totalLng / validPoints;
+                        const centroidDistance = Math.sqrt(
+                            Math.pow(centroidLat - centerPoint.lat, 2) + 
+                            Math.pow(centroidLng - centerPoint.lng, 2)
+                        );
+                        
+                        return centroidDistance <= radiusInDegrees;
+                    }
+                }
+                return false;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Clear all selections
+        function clearAllSelections() {
+            selectedFeatures = [];
+            
+            if (drawnItems) {
+                drawnItems.clearLayers();
+            }
+            
+            if (isBufferMode) {
+                toggleBufferMode();
+            }
+            
+            resetHighlight();
+            updateSummary();
+            updateStatus('Selections cleared');
+        }
+
+        // Setup precinct filter
+        function setupPrecinctFilter(data) {
+            const precincts = [...new Set(data.features.map(f => f.properties.PCTKEY || 'Unknown'))].sort();
+            selectedPrecincts = new Set(precincts);
+            
+            const precinctFilter = document.getElementById('precinctFilter');
+            if (!precinctFilter) return;
+            
+            precinctFilter.innerHTML = '';
+            
+            precincts.forEach(precinct => {
+                const option = document.createElement('option');
+                option.value = precinct;
+                option.textContent = precinct;
+                option.selected = true;
+                precinctFilter.appendChild(option);
+            });
+
+            precinctFilter.addEventListener('change', function() {
+                selectedPrecincts.clear();
+                Array.from(this.selectedOptions).forEach(option => {
+                    selectedPrecincts.add(option.value);
+                });
+                applyAllFilters();
+            });
+        }
+
+        // Select all precincts
+        function selectAllPrecincts() {
+            const precinctFilter = document.getElementById('precinctFilter');
+            if (!precinctFilter) return;
+            
+            Array.from(precinctFilter.options).forEach(option => {
+                option.selected = true;
+                selectedPrecincts.add(option.value);
+            });
+            applyAllFilters();
+        }
+
+        // Select no precincts
+        function selectNoPrecincts() {
+            const precinctFilter = document.getElementById('precinctFilter');
+            if (!precinctFilter) return;
+            
+            Array.from(precinctFilter.options).forEach(option => {
+                option.selected = false;
+            });
+            selectedPrecincts.clear();
+            applyAllFilters();
+        }
+
+        // Load GeoJSON from local file
+        async function loadGeoJSONFromFile() {
+            updateStatus('Loading propcol.geojson...');
+            
+            try {
+                const response = await fetch('propcol.geojson');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const geojson = await response.json();
+                processGeoJSON(geojson);
+                updateStatus('Data loaded successfully!');
+                
+            } catch (error) {
+                updateStatus('Error loading propcol.geojson: ' + error.message);
+                console.error('Failed to load propcol.geojson:', error);
+            }
+        }
+
+        // Process GeoJSON
+        function processGeoJSON(geojson) {
+            try {
+                if (!geojson || !geojson.features || geojson.features.length === 0) {
+                    throw new Error('Invalid or empty GeoJSON data');
+                }
+                
+                originalData = geojson;
+                setupFilters();
+                setupPrecinctFilter(geojson);
+                loadGeoJSON(geojson);
+                
+                const featureCount = geojson.features.length;
+                const precinctCount = new Set(geojson.features.map(f => f.properties.PCTKEY)).size;
+                updateStatus(`Ready! ${featureCount} districts, ${precinctCount} precincts loaded.`);
+                
+            } catch (error) {
+                updateStatus('Error processing data: ' + error.message);
+            }
+        }
+
+        // Setup filters with range support
+        function setupFilters() {
+            const filters = ['dem', 'rep', 'turnout', 'white', 'black', 'hispanic', 'asian', 'antitrump'];
+            
+            filters.forEach(filter => {
+                const sliderMin = document.getElementById(filter + 'SliderMin');
+                const sliderMax = document.getElementById(filter + 'SliderMax');
+                const value = document.getElementById(filter + 'Value');
+                
+                function updateFilterValue() {
+                    if (sliderMin && sliderMax && value) {
+                        const min = parseInt(sliderMin.value);
+                        const max = parseInt(sliderMax.value);
+                        
+                        // Ensure min doesn't exceed max
+                        if (min > max) {
+                            if (event.target === sliderMin) {
+                                sliderMax.value = min;
+                            } else {
+                                sliderMin.value = max;
+                            }
+                        }
+                        
+                        value.textContent = `${Math.min(min, max)}% - ${Math.max(min, max)}%`;
+                        applyAllFilters();
+                    }
+                }
+                
+                if (sliderMin) sliderMin.addEventListener('input', updateFilterValue);
+                if (sliderMax) sliderMax.addEventListener('input', updateFilterValue);
+            });
+        }
+
+        // Apply all filters with range support
+        function applyAllFilters() {
+            if (!originalData) return;
+            
+            const filters = {
+                demMin: parseInt(document.getElementById('demSliderMin').value) / 100,
+                demMax: parseInt(document.getElementById('demSliderMax').value) / 100,
+                repMin: parseInt(document.getElementById('repSliderMin').value) / 100,
+                repMax: parseInt(document.getElementById('repSliderMax').value) / 100,
+                turnoutMin: parseInt(document.getElementById('turnoutSliderMin').value) / 100,
+                turnoutMax: parseInt(document.getElementById('turnoutSliderMax').value) / 100,
+                whiteMin: parseInt(document.getElementById('whiteSliderMin').value) / 100,
+                whiteMax: parseInt(document.getElementById('whiteSliderMax').value) / 100,
+                blackMin: parseInt(document.getElementById('blackSliderMin').value) / 100,
+                blackMax: parseInt(document.getElementById('blackSliderMax').value) / 100,
+                hispanicMin: parseInt(document.getElementById('hispanicSliderMin').value) / 100,
+                hispanicMax: parseInt(document.getElementById('hispanicSliderMax').value) / 100,
+                asianMin: parseInt(document.getElementById('asianSliderMin').value) / 100,
+                asianMax: parseInt(document.getElementById('asianSliderMax').value) / 100,
+                antitrumpMin: parseInt(document.getElementById('antitrumpSliderMin').value) / 100,
+                antitrumpMax: parseInt(document.getElementById('antitrumpSliderMax').value) / 100
+            };
+            
+            const filteredData = {
+                ...originalData,
+                features: originalData.features.filter(feature => {
+                    const props = feature.properties;
+                    
+                    // Precinct filter
+                    const precinct = props.PCTKEY || 'Unknown';
+                    if (!selectedPrecincts.has(precinct)) {
+                        return false;
+                    }
+                    
+                    // Range filters
+                    const demPct = props.Dem_pct || 0;
+                    const repPct = props.Rep_pct || 0;
+                    const turnoutPct = props.turn_pct || 0;
+                    const whitePct = props.White_Vap_pct || 0;
+                    const blackPct = props.Black_Vap_pct || 0;
+                    const hispanicPct = props.Hispanic_Vap_pct || 0;
+                    const asianPct = props.Asian_Vap_pct || 0;
+                    const antitrumpPct = props.Anti_Trump_pct || 0;
+                    
+                    return demPct >= filters.demMin && demPct <= filters.demMax &&
+                           repPct >= filters.repMin && repPct <= filters.repMax &&
+                           turnoutPct >= filters.turnoutMin && turnoutPct <= filters.turnoutMax &&
+                           whitePct >= filters.whiteMin && whitePct <= filters.whiteMax &&
+                           blackPct >= filters.blackMin && blackPct <= filters.blackMax &&
+                           hispanicPct >= filters.hispanicMin && hispanicPct <= filters.hispanicMax &&
+                           asianPct >= filters.asianMin && asianPct <= filters.asianMax &&
+                           antitrumpPct >= filters.antitrumpMin && antitrumpPct <= filters.antitrumpMax;
+                })
+            };
+            
+            loadGeoJSON(filteredData);
+            selectedFeatures = [];
+            updateSummary();
+            updateVoterStats();
+        }
+
+        // Get color for Democratic percentage
+        function getColor(demPct) {
+            const pct = (parseFloat(demPct) || 0) * 100;
+            
+            if (pct < 20) return '#8b0000';
+            if (pct < 40) return '#dc143c';
+            if (pct < 49) return '#ff6b6b';
+            if (pct < 60) return '#4dabf7';
+            return '#1864ab';
+        }
+
+        // Style polygons
+        function style(feature) {
+            const demPct = parseFloat(feature.properties.Dem_pct) || 0;
+            return {
+                fillColor: getColor(demPct),
+                weight: 1,
+                opacity: 1,
+                color: 'white',
+                fillOpacity: 0.7
+            };
+        }
+
+        // Highlight style
+        function highlightStyle(feature) {
+            return {
+                fillColor: getColor(feature.properties.Dem_pct),
+                weight: 3,
+                color: '#ffff00',
+                fillOpacity: 0.9
+            };
+        }
+
+        // Load GeoJSON onto map with improved click handling
+        function loadGeoJSON(geojson) {
+            if (geoJsonLayer) {
+                map.removeLayer(geoJsonLayer);
+            }
+
+            geoJsonLayer = L.geoJSON(geojson, {
+                style: style,
+                onEachFeature: function(feature, layer) {
+                    const props = feature.properties;
+                    const demPct = (parseFloat(props.Dem_pct) || 0) * 100;
+                    
+                    layer.bindTooltip(`
+                        <strong>Precinct:</strong> ${props.PCTKEY || 'N/A'}<br>
+                        <strong>VTD:</strong> ${props.VTD || 'N/A'}<br>
+                        <strong>Dem %:</strong> ${demPct.toFixed(1)}%
+                    `);
+
+                    // Enhanced click handler with shift support
+                    layer.on('click', function(e) {
+                        toggleFeatureSelection(feature, layer, e);
+                        L.DomEvent.stopPropagation(e);
+                    });
+                }
+            }).addTo(map);
+
+            map.fitBounds(geoJsonLayer.getBounds(), {padding: [20, 20]});
+        }
+
+        // Select features in drawn area
+        function selectFeaturesInDrawnArea(drawnLayer) {
+            selectedFeatures = [];
+            
+            if (!geoJsonLayer) return;
+
+            geoJsonLayer.eachLayer(function(layer) {
+                const feature = layer.feature;
+                if (isFeatureInDrawnArea(feature, drawnLayer)) {
+                    selectedFeatures.push({feature: feature, layer: layer});
+                    layer.setStyle(highlightStyle(feature));
+                } else {
+                    layer.setStyle(style(feature));
+                }
+            });
+            
+            updateSummary();
+        }
+
+        // Check if feature is in drawn area
+        function isFeatureInDrawnArea(feature, drawnLayer) {
+            if (!feature.geometry || !feature.geometry.coordinates) return false;
+            
+            try {
+                const drawnBounds = drawnLayer.getBounds();
+                
+                if (feature.geometry.type === 'Polygon') {
+                    const coords = feature.geometry.coordinates[0];
+                    return coords.some(coord => {
+                        return drawnBounds.contains([coord[1], coord[0]]);
+                    });
+                }
+                return false;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Toggle feature selection
+        function toggleFeatureSelection(feature, layer) {
+            const index = selectedFeatures.findIndex(f => f.feature === feature);
+            
+            if (index > -1) {
+                selectedFeatures.splice(index, 1);
+                layer.setStyle(style(feature));
+            } else {
+                selectedFeatures.push({feature: feature, layer: layer});
+                layer.setStyle(highlightStyle(feature));
+            }
+            
+            updateSummary();
+        }
+
+        // Reset highlights
+        function resetHighlight() {
+            if (geoJsonLayer) {
+                geoJsonLayer.eachLayer(function(layer) {
+                    layer.setStyle(style(layer.feature));
+                });
+            }
+        }
+
+        // Update summary
+        function updateSummary() {
+            const summaryContent = document.getElementById('summaryContent');
+            
+            if (selectedFeatures.length === 0) {
+                summaryContent.innerHTML = '<p style="color: #666; text-align: center; font-size: 12px;">Select areas to view data</p>';
+                return;
+            }
+
+            const aggregated = aggregateData(selectedFeatures.map(sf => sf.feature.properties));
+            const pointCounts = countPointsInSelection();
+            
+            let html = `<div class="summary-item">
+                <span class="summary-label">Selected Areas:</span>
+                <span class="summary-value">${selectedFeatures.length}</span>
+            </div>`;
+            
+            // Add point counts
+            html += `<div class="summary-item">
+                <span class="summary-label">Democratic Points:</span>
+                <span class="summary-value" style="color: #0066cc;">${pointCounts.dem}</span>
+            </div>`;
+            
+            html += `<div class="summary-item">
+                <span class="summary-label">Republican Points:</span>
+                <span class="summary-value" style="color: #cc0000;">${pointCounts.rep}</span>
+            </div>`;
+            
+            html += `<div class="summary-item">
+                <span class="summary-label">Total Points:</span>
+                <span class="summary-value">${pointCounts.total}</span>
+            </div>`;
+            
+            Object.entries(aggregated).forEach(([key, value]) => {
+                let displayValue;
+                if (key.includes('_pct') || key.includes('_Pct')) {
+                    displayValue = `${(value * 100).toFixed(1)}%`;
+                } else {
+                    displayValue = value.toLocaleString();
+                }
+                
+                html += `<div class="summary-item">
+                    <span class="summary-label">${formatLabel(key)}:</span>
+                    <span class="summary-value">${displayValue}</span>
+                </div>`;
+            });
+            
+            summaryContent.innerHTML = html;
+        }
+
+        // Aggregate data
+        function aggregateData(propertiesArray) {
+            if (propertiesArray.length === 0) return {};
+            
+            const result = {};
+            const sampleProps = propertiesArray[0];
+            
+            Object.keys(sampleProps).forEach(key => {
+                if (key === 'geometry' || key === 'GEOID' || key === 'PCTKEY') return;
+                
+                const values = propertiesArray.map(p => parseFloat(p[key]) || 0).filter(v => !isNaN(v));
+                if (values.length === 0) return;
+                
+                if (key.includes('_pct') || key.includes('_Pct')) {
+                    // Average for percentage fields
+                    result[key] = values.reduce((sum, val) => sum + val, 0) / values.length;
+                } else if (['Dem', 'Rep', 'Total', 'Anti_Trump'].includes(key) || key.endsWith('vap')) {
+                    // Sum for vote counts, Anti_Trump, and VAP fields
+                    result[key] = values.reduce((sum, val) => sum + val, 0);
+                }
+            });
+            
+            return result;
+        }
+
+        // Format labels
+        function formatLabel(key) {
+            return key.replace(/_/g, ' ')
+                     .replace(/pct/gi, '%')
+                     .replace(/vap/gi, 'VAP')
+                     .replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        // Load voter data from CSV
+        async function loadVoterData() {
+            try {
+                const response = await fetch('col.csv');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const csvText = await response.text();
+                
+                Papa.parse(csvText, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        voterData = results.data;
+                        updateVoterStats();
+                        console.log(`Loaded ${voterData.length} voter records`);
+                    },
+                    error: function(error) {
+                        console.error('Error parsing CSV:', error);
+                        document.getElementById('voterStats').textContent = 'Error loading voter data';
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error loading col.csv:', error);
+                document.getElementById('voterStats').textContent = 'col.csv not found';
+            }
+        }
+
+        // Get PCTKEYs from selected features only
+        function getSelectedPCTKeys() {
+            const selectedKeys = new Set();
+            
+            selectedFeatures.forEach(item => {
+                const pctkey = item.feature.properties.PCTKEY;
+                if (pctkey) {
+                    selectedKeys.add(pctkey);
+                }
+            });
+            
+            return selectedKeys;
+        }
+
+        // Export voters based on selected precincts only
+        function exportVoters() {
+            if (!voterData) {
+                alert('Voter data not loaded yet. Please wait.');
+                return;
+            }
+
+            const threshold = parseInt(document.getElementById('demVoteThreshold').value);
+            const vote24Filter = document.getElementById('vote24Filter').value;
+            const selectedPCTKeys = getSelectedPCTKeys();
+            
+            if (selectedPCTKeys.size === 0) {
+                alert('No precincts selected. Please select precincts on the map first.');
+                return;
+            }
+
+            // Convert selected PCTKeys to both string and number formats for comparison
+            const selectedKeysAsStrings = new Set([...selectedPCTKeys].map(key => String(key)));
+            const selectedKeysAsNumbers = new Set([...selectedPCTKeys].map(key => Number(key)).filter(key => !isNaN(key)));
+
+            // Filter voters based on criteria
+            const filteredVoters = voterData.filter(voter => {
+                const voterPCTKey = voter.PCTKEY;
+                const demVotes = parseInt(voter.Dem_vote_count) || 0;
+                const voted24 = voter.Vote24;
+                
+                // Check both string and number versions of PCTKEY
+                const keyMatch = selectedKeysAsStrings.has(String(voterPCTKey)) || 
+                                selectedKeysAsNumbers.has(Number(voterPCTKey));
+                
+                // Check Vote24 filter
+                let vote24Match = true;
+                if (vote24Filter === 'yes') {
+                    vote24Match = voted24 === 'Y' || voted24 === 'Yes' || voted24 === 1 || voted24 === '1';
+                } else if (vote24Filter === 'no') {
+                    vote24Match = voted24 === 'N' || voted24 === 'No' || voted24 === 0 || voted24 === '0' || !voted24;
+                }
+                
+                return keyMatch && demVotes >= threshold && vote24Match;
+            });
+
+            if (filteredVoters.length === 0) {
+                alert('No voters found matching the criteria in selected precincts.');
+                return;
+            }
+
+            // Convert to CSV and download
+            const csv = Papa.unparse(filteredVoters);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                const vote24Suffix = vote24Filter === 'all' ? '' : `_vote24${vote24Filter}`;
+                link.setAttribute('download', `voters_dem${threshold}plus${vote24Suffix}_${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            const vote24Text = vote24Filter === 'all' ? '' : ` (${vote24Filter === 'yes' ? 'voted' : 'did not vote'} in 2024)`;
+            updateStatus(`Downloaded ${filteredVoters.length} voters with ${threshold}+ Democratic votes${vote24Text} from ${selectedPCTKeys.size} selected precincts`);
+        }
+
+        // Update voter statistics display
+        function updateVoterStats() {
+            if (!voterData) {
+                document.getElementById('voterStats').textContent = 'Loading voter data...';
+                return;
+            }
+
+            const threshold = parseInt(document.getElementById('demVoteThreshold').value || 1);
+            const selectedPCTKeys = getSelectedPCTKeys();
+            
+            if (selectedPCTKeys.size === 0) {
+                document.getElementById('voterStats').textContent = 'Select precincts on map to see voter stats';
+                return;
+            }
+
+            // Convert selected PCTKeys to both string and number formats for comparison
+            const selectedKeysAsStrings = new Set([...selectedPCTKeys].map(key => String(key)));
+            const selectedKeysAsNumbers = new Set([...selectedPCTKeys].map(key => Number(key)).filter(key => !isNaN(key)));
+
+            // Count voters matching criteria
+            const matchingVoters = voterData.filter(voter => {
+                const voterPCTKey = voter.PCTKEY;
+                const demVotes = parseInt(voter.Dem_vote_count) || 0;
+                
+                // Check both string and number versions of PCTKEY
+                const keyMatch = selectedKeysAsStrings.has(String(voterPCTKey)) || 
+                                selectedKeysAsNumbers.has(Number(voterPCTKey));
+                
+                return keyMatch && demVotes >= threshold;
+            }).length;
+
+            const totalInSelected = voterData.filter(voter => {
+                const voterPCTKey = voter.PCTKEY;
+                return selectedKeysAsStrings.has(String(voterPCTKey)) || 
+                       selectedKeysAsNumbers.has(Number(voterPCTKey));
+            }).length;
+
+            document.getElementById('voterStats').innerHTML = 
+                `${matchingVoters} voters (${threshold}+ Dem votes)<br>` +
+                `${totalInSelected} total in ${selectedPCTKeys.size} selected precincts`;
+        }
+
+        // Update status
+        function updateStatus(message) {
+            const statusEl = document.getElementById('statusMessage');
+            if (statusEl) {
+                statusEl.textContent = message;
+            }
+        }
+    </script>
+</body>
+</html>
