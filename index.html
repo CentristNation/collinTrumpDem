@@ -360,14 +360,14 @@
             <div class="section" id="layerSection">
                 <div class="section-title">Layer Controls</div>
                 <div class="layer-control">
-                    <span style="font-size: 12px; font-weight: 500;">Polygon Layer</span>
+                    <span style="font-size: 12px; font-weight: 500;">Precinct Layer</span>
                     <label class="layer-toggle">
                         <input type="checkbox" id="polygonLayerToggle" checked onchange="togglePolygonLayer()">
                         <span class="slider"></span>
                     </label>
                 </div>
                 <div class="layer-control">
-                    <span style="font-size: 12px; font-weight: 500;">Point Layer</span>
+                    <span style="font-size: 12px; font-weight: 500;">Voter Layer</span>
                     <label class="layer-toggle">
                         <input type="checkbox" id="pointLayerToggle" checked onchange="togglePointLayer()">
                         <span class="slider"></span>
@@ -677,14 +677,19 @@
 
             pointLayer = L.geoJSON(geojson, {
                 pointToLayer: function(feature, latlng) {
-                    const party = feature.properties.party;
-                    const color = party === 'Dem' ? '#0066cc' : '#cc0000';
+                    const party = (feature.properties.party || '').toString().toLowerCase();
+                    let color = '#cc0000'; // default red
+                    
+                    // More flexible party detection
+                    if (party.includes('dem') || party === 'd') {
+                        color = '#0066cc'; // blue
+                    }
                     
                     return L.circleMarker(latlng, {
-                        radius: 8,
+                        radius: 4,
                         fillColor: color,
                         color: '#fff',
-                        weight: 2,
+                        weight: 1,
                         opacity: 1,
                         fillOpacity: 0.9
                     });
@@ -716,7 +721,12 @@
 
             if (pointLayerVisible) {
                 pointLayer.addTo(map);
-                updateStatus(`Point layer loaded with ${geojson.features.length} points`);
+                
+                // Debug: log party values to see what we're working with
+                const parties = geojson.features.map(f => f.properties.party);
+                const uniqueParties = [...new Set(parties)];
+                console.log('Unique party values:', uniqueParties);
+                updateStatus(`Point layer loaded with ${geojson.features.length} points. Parties: ${uniqueParties.join(', ')}`);
             }
         }
 
@@ -762,23 +772,26 @@
             pointData.features.forEach(point => {
                 if (point.geometry && point.geometry.coordinates) {
                     const pointCoords = point.geometry.coordinates;
-                    const pointLatlng = [pointCoords[1], pointCoords[0]]; // [lat, lng]
+                    const pointLng = pointCoords[0];
+                    const pointLat = pointCoords[1];
                     
                     // Check if point is in any selected polygon
                     const isInSelection = selectedFeatures.some(sf => {
-                        return isPointInPolygon(pointLatlng, sf.feature);
+                        return isPointInPolygonImproved(pointLat, pointLng, sf.feature);
                     });
                     
                     if (isInSelection) {
-                        if (point.properties.party === 'Dem') {
+                        const party = (point.properties.party || '').toString().toLowerCase();
+                        if (party.includes('dem') || party === 'd') {
                             demCount++;
-                        } else if (point.properties.party === 'Rep') {
+                        } else if (party.includes('rep') || party === 'r') {
                             repCount++;
                         }
                     }
                 }
             });
 
+            console.log(`Point count results: Dem=${demCount}, Rep=${repCount}`);
             return {
                 dem: demCount,
                 rep: repCount,
@@ -786,28 +799,31 @@
             };
         }
 
-        // Check if point is inside polygon
-        function isPointInPolygon(point, polygonFeature) {
+        // Improved point-in-polygon test using ray casting algorithm
+        function isPointInPolygonImproved(lat, lng, polygonFeature) {
             if (!polygonFeature.geometry || polygonFeature.geometry.type !== 'Polygon') {
                 return false;
             }
             
             try {
                 const coords = polygonFeature.geometry.coordinates[0];
-                const x = point[1]; // longitude
-                const y = point[0]; // latitude
-                
                 let inside = false;
+                
                 for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
-                    const xi = coords[i][0], yi = coords[i][1];
-                    const xj = coords[j][0], yj = coords[j][1];
+                    const xi = coords[i][0]; // longitude
+                    const yi = coords[i][1]; // latitude
+                    const xj = coords[j][0]; // longitude  
+                    const yj = coords[j][1]; // latitude
                     
-                    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                    if (((yi > lat) !== (yj > lat)) && 
+                        (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
                         inside = !inside;
                     }
                 }
+                
                 return inside;
             } catch (e) {
+                console.error('Error in point-in-polygon test:', e);
                 return false;
             }
         }
@@ -1545,6 +1561,7 @@
             });
             
             summaryContent.innerHTML = html;
+            updateVoterStats();
         }
 
         // Aggregate data
