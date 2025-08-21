@@ -360,6 +360,13 @@
             <div class="section" id="layerSection">
                 <div class="section-title">Layer Controls</div>
                 <div class="layer-control">
+                    <span style="font-size: 12px; font-weight: 500;">Polygon Layer</span>
+                    <label class="layer-toggle">
+                        <input type="checkbox" id="polygonLayerToggle" checked onchange="togglePolygonLayer()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="layer-control">
                     <span style="font-size: 12px; font-weight: 500;">Point Layer</span>
                     <label class="layer-toggle">
                         <input type="checkbox" id="pointLayerToggle" checked onchange="togglePointLayer()">
@@ -550,11 +557,11 @@
                     <h4>Points</h4>
                     <div class="point-legend-item">
                         <div class="point-legend-dot dem-point"></div>
-                        <span>Democratic</span>
+                        <span>Democrats</span>
                     </div>
                     <div class="point-legend-item">
                         <div class="point-legend-dot rep-point"></div>
-                        <span>Republican</span>
+                        <span>Republicans</span>
                     </div>
                 </div>
             </div>
@@ -572,6 +579,7 @@
         let voterData = null;
         let selectedPrecincts = new Set();
         let pointLayerVisible = true;
+        let polygonLayerVisible = true;
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
@@ -673,12 +681,12 @@
                     const color = party === 'Dem' ? '#0066cc' : '#cc0000';
                     
                     return L.circleMarker(latlng, {
-                        radius: 6,
+                        radius: 8,
                         fillColor: color,
                         color: '#fff',
                         weight: 2,
                         opacity: 1,
-                        fillOpacity: 0.8
+                        fillOpacity: 0.9
                     });
                 },
                 onEachFeature: function(feature, layer) {
@@ -708,6 +716,21 @@
 
             if (pointLayerVisible) {
                 pointLayer.addTo(map);
+                updateStatus(`Point layer loaded with ${geojson.features.length} points`);
+            }
+        }
+
+        // Toggle polygon layer visibility
+        function togglePolygonLayer() {
+            const toggle = document.getElementById('polygonLayerToggle');
+            polygonLayerVisible = toggle.checked;
+            
+            if (geoJsonLayer) {
+                if (polygonLayerVisible) {
+                    geoJsonLayer.addTo(map);
+                } else {
+                    map.removeLayer(geoJsonLayer);
+                }
             }
         }
 
@@ -719,8 +742,10 @@
             if (pointLayer) {
                 if (pointLayerVisible) {
                     pointLayer.addTo(map);
+                    updateStatus('Point layer enabled');
                 } else {
                     map.removeLayer(pointLayer);
+                    updateStatus('Point layer disabled');
                 }
             }
         }
@@ -1401,7 +1426,11 @@
                         L.DomEvent.stopPropagation(e);
                     });
                 }
-            }).addTo(map);
+            });
+
+            if (polygonLayerVisible) {
+                geoJsonLayer.addTo(map);
+            }
 
             map.fitBounds(geoJsonLayer.getBounds(), {padding: [20, 20]});
         }
@@ -1487,12 +1516,12 @@
             
             // Add point counts
             html += `<div class="summary-item">
-                <span class="summary-label">Democratic Points:</span>
+                <span class="summary-label">Democrats:</span>
                 <span class="summary-value" style="color: #0066cc;">${pointCounts.dem}</span>
             </div>`;
             
             html += `<div class="summary-item">
-                <span class="summary-label">Republican Points:</span>
+                <span class="summary-label">Republicans:</span>
                 <span class="summary-value" style="color: #cc0000;">${pointCounts.rep}</span>
             </div>`;
             
