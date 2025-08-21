@@ -680,40 +680,80 @@
             }
         }
 
-        // Load point layer
+        // Load point layer with comprehensive debugging
         function loadPointLayer(geojson) {
             if (pointLayer) {
                 map.removeLayer(pointLayer);
             }
 
+            // First, let's examine the actual data
+            console.log('=== POINT DATA ANALYSIS ===');
+            console.log('Raw GeoJSON:', geojson);
+            console.log('Feature count:', geojson.features.length);
+            
+            // Check first 5 features to understand the data structure
+            geojson.features.slice(0, 5).forEach((feature, i) => {
+                console.log(`Feature ${i}:`, {
+                    geometry: feature.geometry,
+                    properties: feature.properties,
+                    party_raw: feature.properties.party,
+                    party_type: typeof feature.properties.party
+                });
+            });
+
+            // Get all unique party values
+            const allParties = geojson.features.map(f => f.properties.party);
+            const uniqueParties = [...new Set(allParties)];
+            console.log('All unique party values:', uniqueParties);
+            
+            // Count each party type
+            const partyCounts = {};
+            allParties.forEach(party => {
+                partyCounts[party] = (partyCounts[party] || 0) + 1;
+            });
+            console.log('Party counts:', partyCounts);
+
             pointLayer = L.geoJSON(geojson, {
                 pointToLayer: function(feature, latlng) {
-                    const party = (feature.properties.party || '').toString().toLowerCase();
+                    const partyRaw = feature.properties.party;
                     let color = '#cc0000'; // default red
                     
-                    // More flexible party detection
-                    if (party.includes('dem') || party === 'd') {
+                    console.log(`Processing point: party="${partyRaw}", type=${typeof partyRaw}`);
+                    
+                    // Test multiple possible values for Democratic
+                    if (partyRaw === 'Dem' || 
+                        partyRaw === 'DEM' || 
+                        partyRaw === 'Democrat' || 
+                        partyRaw === 'Democratic' || 
+                        partyRaw === 'D' || 
+                        partyRaw === 'd' ||
+                        (typeof partyRaw === 'string' && partyRaw.toLowerCase().includes('dem'))) {
                         color = '#0066cc'; // blue
+                        console.log(`Setting blue for party: "${partyRaw}"`);
                     }
                     
-                    return L.circleMarker(latlng, {
-                        radius: 4,
+                    const marker = L.circleMarker(latlng, {
+                        radius: 5,
                         fillColor: color,
                         color: '#fff',
                         weight: 1,
                         opacity: 1,
                         fillOpacity: 0.9
                     });
+                    
+                    // Store original data on marker for debugging
+                    marker._pointData = feature;
+                    
+                    return marker;
                 },
                 onEachFeature: function(feature, layer) {
-                    // Create tooltip content showing all properties
-                    let tooltipContent = '<div style="max-width: 200px;">';
-                    
+                    // Create tooltip showing all properties
+                    let tooltipContent = '<div style="max-width: 300px; font-size: 11px;">';
                     Object.keys(feature.properties).forEach(key => {
                         const value = feature.properties[key];
-                        tooltipContent += `<strong>${key}:</strong> ${value}<br>`;
+                        tooltipContent += `<strong>${key}:</strong> ${JSON.stringify(value)}<br>`;
                     });
-                    
+                    tooltipContent += `<strong>Coordinates:</strong> [${feature.geometry.coordinates.join(', ')}]<br>`;
                     tooltipContent += '</div>';
                     
                     layer.bindTooltip(tooltipContent, {
@@ -722,9 +762,9 @@
                         offset: [0, -10]
                     });
 
-                    // Click handler for points
                     layer.on('click', function(e) {
                         layer.openTooltip();
+                        console.log('Clicked point:', feature);
                         L.DomEvent.stopPropagation(e);
                     });
                 }
@@ -732,13 +772,10 @@
 
             if (pointLayerVisible) {
                 pointLayer.addTo(map);
-                
-                // Debug: log party values to see what we're working with
-                const parties = geojson.features.map(f => f.properties.party);
-                const uniqueParties = [...new Set(parties)];
-                console.log('Unique party values:', uniqueParties);
-                updateStatus(`Point layer loaded with ${geojson.features.length} points. Parties: ${uniqueParties.join(', ')}`);
+                console.log('Point layer added to map');
             }
+            
+            updateStatus(`Loaded ${geojson.features.length} points. Check console for party analysis.`);
         }
 
         // Toggle polygon layer visibility
@@ -771,69 +808,83 @@
             }
         }
 
-        // Count points in selected polygons
+        // Completely rewritten point counting with robust debugging
         function countPointsInSelection() {
+            console.log('=== COUNTING POINTS IN SELECTION ===');
+            
             if (!pointData || selectedFeatures.length === 0) {
                 console.log('No point data or no selected features');
                 return { dem: 0, rep: 0, total: 0 };
             }
 
-            console.log(`Counting points for ${selectedFeatures.length} selected polygons`);
+            console.log(`Selected polygons: ${selectedFeatures.length}`);
             console.log(`Total points to check: ${pointData.features.length}`);
 
             let demCount = 0;
             let repCount = 0;
-            let totalChecked = 0;
-            let insideCount = 0;
+            let pointsInside = 0;
+            let debugCount = 0;
 
-            pointData.features.forEach((point, index) => {
-                if (point.geometry && point.geometry.coordinates) {
-                    totalChecked++;
-                    const pointCoords = point.geometry.coordinates;
-                    const pointLng = pointCoords[0];
-                    const pointLat = pointCoords[1];
+            // For each point, check if it's in any selected polygon
+            pointData.features.forEach((point, pointIndex) => {
+                if (!point.geometry || !point.geometry.coordinates) {
+                    return;
+                }
+
+                const [lng, lat] = point.geometry.coordinates;
+                
+                // Check against each selected polygon
+                for (let i = 0; i < selectedFeatures.length; i++) {
+                    const polygon = selectedFeatures[i].feature;
                     
-                    // Check if point is in any selected polygon
-                    const isInSelection = selectedFeatures.some(sf => {
-                        return isPointInPolygonImproved(pointLat, pointLng, sf.feature);
-                    });
-                    
-                    if (isInSelection) {
-                        insideCount++;
+                    if (isPointInPolygonRobust(lat, lng, polygon)) {
+                        pointsInside++;
+                        
                         const party = point.properties.party;
                         
-                        // Log first few points that are inside for debugging
-                        if (insideCount <= 5) {
-                            console.log(`Point ${index} inside polygon: party="${party}", coords=[${pointLat}, ${pointLng}]`);
+                        // Debug first few matches
+                        if (debugCount < 5) {
+                            console.log(`Point ${pointIndex} INSIDE polygon ${i}:`, {
+                                coordinates: [lat, lng],
+                                party: party,
+                                partyType: typeof party
+                            });
+                            debugCount++;
                         }
                         
-                        // Exact match first, then flexible matching
-                        if (party === 'Dem' || party === 'Democrat' || party === 'Democratic') {
+                        // Count by party
+                        if (party === 'Dem' || party === 'DEM' || party === 'Democrat' || party === 'Democratic' || party === 'D') {
                             demCount++;
-                        } else if (party === 'Rep' || party === 'Republican') {
+                        } else if (party === 'Rep' || party === 'REP' || party === 'Republican' || party === 'R') {
                             repCount++;
                         } else {
-                            // Try case-insensitive and partial matches
-                            const partyLower = (party || '').toString().toLowerCase();
-                            if (partyLower.includes('dem') || partyLower === 'd') {
-                                demCount++;
-                            } else if (partyLower.includes('rep') || partyLower === 'r') {
-                                repCount++;
-                            } else {
-                                console.log(`Unknown party value: "${party}"`);
-                            }
+                            console.log(`Unknown party: "${party}"`);
                         }
+                        
+                        break; // Found in one polygon, don't need to check others
                     }
                 }
             });
 
-            console.log(`Points checked: ${totalChecked}, Points inside: ${insideCount}, Dem: ${demCount}, Rep: ${repCount}`);
+            console.log(`RESULTS: Points inside: ${pointsInside}, Dem: ${demCount}, Rep: ${repCount}`);
             
-            // If no points are found inside, let's debug the first polygon
-            if (insideCount === 0 && selectedFeatures.length > 0) {
-                const firstPolygon = selectedFeatures[0].feature;
-                console.log('First selected polygon bounds:', getPolygonBounds(firstPolygon));
-                console.log('Sample point coordinates:', pointData.features.slice(0, 3).map(p => p.geometry.coordinates));
+            // If no points found, debug the first polygon and first few points
+            if (pointsInside === 0) {
+                console.log('=== NO POINTS FOUND - DEBUGGING ===');
+                
+                if (selectedFeatures.length > 0) {
+                    const firstPolygon = selectedFeatures[0].feature;
+                    console.log('First polygon geometry:', firstPolygon.geometry);
+                    
+                    const bounds = getPolygonBounds(firstPolygon);
+                    console.log('First polygon bounds:', bounds);
+                }
+                
+                // Check first few points
+                pointData.features.slice(0, 3).forEach((point, i) => {
+                    const [lng, lat] = point.geometry.coordinates;
+                    console.log(`Point ${i}: [${lat}, ${lng}] party="${point.properties.party}"`);
+                });
             }
 
             return {
@@ -843,55 +894,50 @@
             };
         }
 
-        // Get polygon bounds for debugging
-        function getPolygonBounds(polygonFeature) {
-            if (!polygonFeature.geometry || polygonFeature.geometry.type !== 'Polygon') {
-                return null;
-            }
-            
-            const coords = polygonFeature.geometry.coordinates[0];
-            let minLat = Infinity, maxLat = -Infinity;
-            let minLng = Infinity, maxLng = -Infinity;
-            
-            coords.forEach(coord => {
-                const lng = coord[0];
-                const lat = coord[1];
-                minLat = Math.min(minLat, lat);
-                maxLat = Math.max(maxLat, lat);
-                minLng = Math.min(minLng, lng);
-                maxLng = Math.max(maxLng, lng);
-            });
-            
-            return { minLat, maxLat, minLng, maxLng };
-        }
-
-        // Improved point-in-polygon test using ray casting algorithm
-        function isPointInPolygonImproved(lat, lng, polygonFeature) {
+        // More robust point-in-polygon algorithm using winding number
+        function isPointInPolygonRobust(lat, lng, polygonFeature) {
             if (!polygonFeature.geometry || polygonFeature.geometry.type !== 'Polygon') {
                 return false;
             }
             
             try {
                 const coords = polygonFeature.geometry.coordinates[0];
-                let inside = false;
-                
-                for (let i = 0, j = coords.length - 1; i < coords.length; j = i++) {
-                    const xi = coords[i][0]; // longitude
-                    const yi = coords[i][1]; // latitude
-                    const xj = coords[j][0]; // longitude  
-                    const yj = coords[j][1]; // latitude
-                    
-                    if (((yi > lat) !== (yj > lat)) && 
-                        (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
-                        inside = !inside;
-                    }
-                }
-                
-                return inside;
+                return isPointInPolygonWindingNumber(lat, lng, coords);
             } catch (e) {
                 console.error('Error in point-in-polygon test:', e);
                 return false;
             }
+        }
+
+        // Winding number algorithm for point-in-polygon (more reliable than ray casting)
+        function isPointInPolygonWindingNumber(lat, lng, polygonCoords) {
+            let wn = 0; // winding number
+            
+            for (let i = 0; i < polygonCoords.length - 1; i++) {
+                const [x1, y1] = polygonCoords[i];     // current vertex
+                const [x2, y2] = polygonCoords[i + 1]; // next vertex
+                
+                if (y1 <= lat) {
+                    if (y2 > lat) { // upward crossing
+                        if (isLeft(x1, y1, x2, y2, lng, lat) > 0) {
+                            wn++;
+                        }
+                    }
+                } else {
+                    if (y2 <= lat) { // downward crossing
+                        if (isLeft(x1, y1, x2, y2, lng, lat) < 0) {
+                            wn--;
+                        }
+                    }
+                }
+            }
+            
+            return wn !== 0;
+        }
+
+        // Helper function for winding number algorithm
+        function isLeft(x0, y0, x1, y1, x2, y2) {
+            return ((x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0));
         }
 
         // Setup drawing controls
@@ -1816,63 +1862,51 @@
                 `${totalInSelected} total in ${selectedPCTKeys.size} selected precincts`;
         }
 
+        // Get polygon bounds for debugging
+        function getPolygonBounds(polygonFeature) {
+            if (!polygonFeature.geometry || polygonFeature.geometry.type !== 'Polygon') {
+                return null;
+            }
+            
+            const coords = polygonFeature.geometry.coordinates[0];
+            let minLat = Infinity, maxLat = -Infinity;
+            let minLng = Infinity, maxLng = -Infinity;
+            
+            coords.forEach(coord => {
+                const lng = coord[0];
+                const lat = coord[1];
+                minLat = Math.min(minLat, lat);
+                maxLat = Math.max(maxLat, lat);
+                minLng = Math.min(minLng, lng);
+                maxLng = Math.max(maxLng, lng);
+            });
+            
+            return { minLat, maxLat, minLng, maxLng };
+        }
+
         // Debug function to help diagnose point counting issues
         function debugPointCounting() {
-            console.log('=== DEBUG POINT COUNTING ===');
+            console.log('=== MANUAL DEBUG ANALYSIS ===');
             
             if (!pointData) {
-                alert('No point data loaded yet.');
+                alert('No point data loaded. Check console for loading errors.');
                 return;
             }
             
             if (!geoJsonLayer) {
-                alert('No polygon data loaded yet.');
+                alert('No polygon data loaded.');
                 return;
             }
             
-            // Check point data structure
-            console.log('Point data structure:');
-            console.log('Total points:', pointData.features.length);
-            
-            // Sample first 5 points
-            pointData.features.slice(0, 5).forEach((point, i) => {
-                console.log(`Point ${i}:`, {
-                    party: point.properties.party,
-                    coordinates: point.geometry.coordinates,
-                    allProperties: point.properties
-                });
-            });
-            
-            // Check unique party values
-            const parties = pointData.features.map(f => f.properties.party);
-            const uniqueParties = [...new Set(parties)];
-            console.log('Unique party values:', uniqueParties);
-            
-            // Check if any polygons are selected
             if (selectedFeatures.length === 0) {
-                alert('Please select at least one polygon first, then click Debug Points again.');
+                alert('No polygons selected. Please select polygons first.');
                 return;
             }
             
-            console.log('Selected polygons:', selectedFeatures.length);
+            // Force a detailed count
+            const result = countPointsInSelection();
             
-            // Test with first point and first polygon
-            const testPoint = pointData.features[0];
-            const testPolygon = selectedFeatures[0].feature;
-            
-            if (testPoint && testPolygon) {
-                const coords = testPoint.geometry.coordinates;
-                const result = isPointInPolygonImproved(coords[1], coords[0], testPolygon);
-                console.log('Test point-in-polygon result:', {
-                    pointCoords: coords,
-                    polygonBounds: getPolygonBounds(testPolygon),
-                    isInside: result
-                });
-            }
-            
-            // Force a recount and show results
-            const counts = countPointsInSelection();
-            alert(`Debug Results:\nTotal Points: ${pointData.features.length}\nSelected Polygons: ${selectedFeatures.length}\nPoints Found: ${counts.total}\nDemocrats: ${counts.dem}\nRepublicans: ${counts.rep}\n\nCheck console for detailed logs.`);
+            alert(`DEBUG RESULTS:\n\nPoint Data: ${pointData.features.length} total points\nSelected Polygons: ${selectedFeatures.length}\n\nCounts Found:\n• Democrats: ${result.dem}\n• Republicans: ${result.rep}\n• Total: ${result.total}\n\nCheck browser console (F12) for detailed logs.`);
         }
 
         // Update status
