@@ -381,6 +381,7 @@
                     <button class="tool-button" onclick="enableShiftClick()">Multi-Select</button>
                     <button class="tool-button" onclick="selectAllVisible()">Select All Visible</button>
                     <button class="tool-button" id="clearSelection" onclick="clearAllSelections()">Clear All</button>
+                    <button class="tool-button" onclick="debugPointCounting()" style="background: #dc3545;">Debug Points</button>
                     <div class="mode-info" id="modeInfo">Click polygons to select</div>
                     <div style="font-size: 10px; color: #888; margin-top: 5px; text-align: center;">
                         Hold Shift + Click for multiple selection
@@ -656,13 +657,23 @@
                 }
                 
                 pointData = geojson;
+                
+                // Debug: Log sample of data to understand structure
+                console.log('Point data sample:', geojson.features.slice(0, 3));
+                
                 loadPointLayer(geojson);
                 
                 const pointCount = geojson.features.length;
-                const demPoints = geojson.features.filter(f => f.properties.party === 'Dem').length;
-                const repPoints = geojson.features.filter(f => f.properties.party === 'Rep').length;
                 
-                console.log(`Loaded ${pointCount} points (${demPoints} Dem, ${repPoints} Rep)`);
+                // Count party distribution
+                const partyCount = {};
+                geojson.features.forEach(f => {
+                    const party = f.properties.party;
+                    partyCount[party] = (partyCount[party] || 0) + 1;
+                });
+                
+                console.log('Party distribution:', partyCount);
+                updateStatus(`Loaded ${pointCount} points. Parties: ${Object.keys(partyCount).map(k => `${k}:${partyCount[k]}`).join(', ')}`);
                 
             } catch (error) {
                 updateStatus('Error processing point data: ' + error.message);
@@ -763,14 +774,21 @@
         // Count points in selected polygons
         function countPointsInSelection() {
             if (!pointData || selectedFeatures.length === 0) {
+                console.log('No point data or no selected features');
                 return { dem: 0, rep: 0, total: 0 };
             }
 
+            console.log(`Counting points for ${selectedFeatures.length} selected polygons`);
+            console.log(`Total points to check: ${pointData.features.length}`);
+
             let demCount = 0;
             let repCount = 0;
+            let totalChecked = 0;
+            let insideCount = 0;
 
-            pointData.features.forEach(point => {
+            pointData.features.forEach((point, index) => {
                 if (point.geometry && point.geometry.coordinates) {
+                    totalChecked++;
                     const pointCoords = point.geometry.coordinates;
                     const pointLng = pointCoords[0];
                     const pointLat = pointCoords[1];
@@ -781,22 +799,70 @@
                     });
                     
                     if (isInSelection) {
-                        const party = (point.properties.party || '').toString().toLowerCase();
-                        if (party.includes('dem') || party === 'd') {
+                        insideCount++;
+                        const party = point.properties.party;
+                        
+                        // Log first few points that are inside for debugging
+                        if (insideCount <= 5) {
+                            console.log(`Point ${index} inside polygon: party="${party}", coords=[${pointLat}, ${pointLng}]`);
+                        }
+                        
+                        // Exact match first, then flexible matching
+                        if (party === 'Dem' || party === 'Democrat' || party === 'Democratic') {
                             demCount++;
-                        } else if (party.includes('rep') || party === 'r') {
+                        } else if (party === 'Rep' || party === 'Republican') {
                             repCount++;
+                        } else {
+                            // Try case-insensitive and partial matches
+                            const partyLower = (party || '').toString().toLowerCase();
+                            if (partyLower.includes('dem') || partyLower === 'd') {
+                                demCount++;
+                            } else if (partyLower.includes('rep') || partyLower === 'r') {
+                                repCount++;
+                            } else {
+                                console.log(`Unknown party value: "${party}"`);
+                            }
                         }
                     }
                 }
             });
 
-            console.log(`Point count results: Dem=${demCount}, Rep=${repCount}`);
+            console.log(`Points checked: ${totalChecked}, Points inside: ${insideCount}, Dem: ${demCount}, Rep: ${repCount}`);
+            
+            // If no points are found inside, let's debug the first polygon
+            if (insideCount === 0 && selectedFeatures.length > 0) {
+                const firstPolygon = selectedFeatures[0].feature;
+                console.log('First selected polygon bounds:', getPolygonBounds(firstPolygon));
+                console.log('Sample point coordinates:', pointData.features.slice(0, 3).map(p => p.geometry.coordinates));
+            }
+
             return {
                 dem: demCount,
                 rep: repCount,
                 total: demCount + repCount
             };
+        }
+
+        // Get polygon bounds for debugging
+        function getPolygonBounds(polygonFeature) {
+            if (!polygonFeature.geometry || polygonFeature.geometry.type !== 'Polygon') {
+                return null;
+            }
+            
+            const coords = polygonFeature.geometry.coordinates[0];
+            let minLat = Infinity, maxLat = -Infinity;
+            let minLng = Infinity, maxLng = -Infinity;
+            
+            coords.forEach(coord => {
+                const lng = coord[0];
+                const lat = coord[1];
+                minLat = Math.min(minLat, lat);
+                maxLat = Math.max(maxLat, lat);
+                minLng = Math.min(minLng, lng);
+                maxLng = Math.max(maxLng, lng);
+            });
+            
+            return { minLat, maxLat, minLng, maxLng };
         }
 
         // Improved point-in-polygon test using ray casting algorithm
@@ -1748,6 +1814,65 @@
             document.getElementById('voterStats').innerHTML = 
                 `${matchingVoters} voters (${threshold}+ Dem votes)<br>` +
                 `${totalInSelected} total in ${selectedPCTKeys.size} selected precincts`;
+        }
+
+        // Debug function to help diagnose point counting issues
+        function debugPointCounting() {
+            console.log('=== DEBUG POINT COUNTING ===');
+            
+            if (!pointData) {
+                alert('No point data loaded yet.');
+                return;
+            }
+            
+            if (!geoJsonLayer) {
+                alert('No polygon data loaded yet.');
+                return;
+            }
+            
+            // Check point data structure
+            console.log('Point data structure:');
+            console.log('Total points:', pointData.features.length);
+            
+            // Sample first 5 points
+            pointData.features.slice(0, 5).forEach((point, i) => {
+                console.log(`Point ${i}:`, {
+                    party: point.properties.party,
+                    coordinates: point.geometry.coordinates,
+                    allProperties: point.properties
+                });
+            });
+            
+            // Check unique party values
+            const parties = pointData.features.map(f => f.properties.party);
+            const uniqueParties = [...new Set(parties)];
+            console.log('Unique party values:', uniqueParties);
+            
+            // Check if any polygons are selected
+            if (selectedFeatures.length === 0) {
+                alert('Please select at least one polygon first, then click Debug Points again.');
+                return;
+            }
+            
+            console.log('Selected polygons:', selectedFeatures.length);
+            
+            // Test with first point and first polygon
+            const testPoint = pointData.features[0];
+            const testPolygon = selectedFeatures[0].feature;
+            
+            if (testPoint && testPolygon) {
+                const coords = testPoint.geometry.coordinates;
+                const result = isPointInPolygonImproved(coords[1], coords[0], testPolygon);
+                console.log('Test point-in-polygon result:', {
+                    pointCoords: coords,
+                    polygonBounds: getPolygonBounds(testPolygon),
+                    isInside: result
+                });
+            }
+            
+            // Force a recount and show results
+            const counts = countPointsInSelection();
+            alert(`Debug Results:\nTotal Points: ${pointData.features.length}\nSelected Polygons: ${selectedFeatures.length}\nPoints Found: ${counts.total}\nDemocrats: ${counts.dem}\nRepublicans: ${counts.rep}\n\nCheck console for detailed logs.`);
         }
 
         // Update status
