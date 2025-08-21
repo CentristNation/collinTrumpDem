@@ -680,33 +680,21 @@
             }
         }
 
-        // Load point layer with comprehensive debugging
+        // Load point layer with improved party detection
         function loadPointLayer(geojson) {
             if (pointLayer) {
                 map.removeLayer(pointLayer);
             }
 
-            // First, let's examine the actual data
+            // Analyze party data structure
             console.log('=== POINT DATA ANALYSIS ===');
-            console.log('Raw GeoJSON:', geojson);
             console.log('Feature count:', geojson.features.length);
             
-            // Check first 5 features to understand the data structure
-            geojson.features.slice(0, 5).forEach((feature, i) => {
-                console.log(`Feature ${i}:`, {
-                    geometry: feature.geometry,
-                    properties: feature.properties,
-                    party_raw: feature.properties.party,
-                    party_type: typeof feature.properties.party
-                });
-            });
-
-            // Get all unique party values
+            // Get all unique party values and count them
             const allParties = geojson.features.map(f => f.properties.party);
             const uniqueParties = [...new Set(allParties)];
             console.log('All unique party values:', uniqueParties);
             
-            // Count each party type
             const partyCounts = {};
             allParties.forEach(party => {
                 partyCounts[party] = (partyCounts[party] || 0) + 1;
@@ -715,45 +703,53 @@
 
             pointLayer = L.geoJSON(geojson, {
                 pointToLayer: function(feature, latlng) {
-                    const partyRaw = feature.properties.party;
-                    let color = '#cc0000'; // default red
+                    const party = feature.properties.party;
+                    let color = '#999999'; // default gray for unknown
+                    let partyType = 'Unknown';
                     
-                    console.log(`Processing point: party="${partyRaw}", type=${typeof partyRaw}`);
-                    
-                    // Test multiple possible values for Democratic
-                    if (partyRaw === 'Dem' || 
-                        partyRaw === 'DEM' || 
-                        partyRaw === 'Democrat' || 
-                        partyRaw === 'Democratic' || 
-                        partyRaw === 'D' || 
-                        partyRaw === 'd' ||
-                        (typeof partyRaw === 'string' && partyRaw.toLowerCase().includes('dem'))) {
-                        color = '#0066cc'; // blue
-                        console.log(`Setting blue for party: "${partyRaw}"`);
+                    // Robust party detection
+                    if (isDemocratic(party)) {
+                        color = '#0066cc'; // blue for Democrats
+                        partyType = 'Democratic';
+                    } else if (isRepublican(party)) {
+                        color = '#cc0000'; // red for Republicans  
+                        partyType = 'Republican';
                     }
                     
                     const marker = L.circleMarker(latlng, {
-                        radius: 5,
+                        radius: 4,
                         fillColor: color,
                         color: '#fff',
                         weight: 1,
                         opacity: 1,
-                        fillOpacity: 0.9
+                        fillOpacity: 0.8
                     });
                     
-                    // Store original data on marker for debugging
+                    // Store party info on marker for easy access
+                    marker._party = party;
+                    marker._partyType = partyType;
                     marker._pointData = feature;
                     
                     return marker;
                 },
                 onEachFeature: function(feature, layer) {
-                    // Create tooltip showing all properties
-                    let tooltipContent = '<div style="max-width: 300px; font-size: 11px;">';
-                    Object.keys(feature.properties).forEach(key => {
-                        const value = feature.properties[key];
-                        tooltipContent += `<strong>${key}:</strong> ${JSON.stringify(value)}<br>`;
-                    });
+                    // Create tooltip showing party and location info
+                    const party = feature.properties.party;
+                    const partyDisplay = isDemocratic(party) ? `${party} (Democratic)` : 
+                                       isRepublican(party) ? `${party} (Republican)` : 
+                                       `${party} (Unknown)`;
+                    
+                    let tooltipContent = `<div style="font-size: 11px;">`;
+                    tooltipContent += `<strong>Party:</strong> ${partyDisplay}<br>`;
                     tooltipContent += `<strong>Coordinates:</strong> [${feature.geometry.coordinates.join(', ')}]<br>`;
+                    
+                    // Show other properties if they exist
+                    Object.keys(feature.properties).forEach(key => {
+                        if (key !== 'party') {
+                            const value = feature.properties[key];
+                            tooltipContent += `<strong>${key}:</strong> ${value}<br>`;
+                        }
+                    });
                     tooltipContent += '</div>';
                     
                     layer.bindTooltip(tooltipContent, {
@@ -764,7 +760,12 @@
 
                     layer.on('click', function(e) {
                         layer.openTooltip();
-                        console.log('Clicked point:', feature);
+                        console.log('Clicked point:', {
+                            party: party,
+                            isDem: isDemocratic(party),
+                            isRep: isRepublican(party),
+                            feature: feature
+                        });
                         L.DomEvent.stopPropagation(e);
                     });
                 }
@@ -775,7 +776,12 @@
                 console.log('Point layer added to map');
             }
             
-            updateStatus(`Loaded ${geojson.features.length} points. Check console for party analysis.`);
+            // Count party distribution for status update
+            const demTotal = allParties.filter(p => isDemocratic(p)).length;
+            const repTotal = allParties.filter(p => isRepublican(p)).length;
+            const unknownTotal = allParties.length - demTotal - repTotal;
+            
+            updateStatus(`Loaded ${geojson.features.length} points: ${demTotal} Dem (blue), ${repTotal} Rep (red), ${unknownTotal} unknown`);
         }
 
         // Toggle polygon layer visibility
@@ -808,13 +814,34 @@
             }
         }
 
-        // Completely rewritten point counting with robust debugging
+        // Helper function to detect Democratic party affiliation
+        function isDemocratic(party) {
+            if (!party) return false;
+            const partyStr = String(party).toLowerCase().trim();
+            return partyStr === 'dem' || 
+                   partyStr === 'democrat' || 
+                   partyStr === 'democratic' || 
+                   partyStr === 'd' ||
+                   partyStr.includes('dem');
+        }
+
+        // Helper function to detect Republican party affiliation  
+        function isRepublican(party) {
+            if (!party) return false;
+            const partyStr = String(party).toLowerCase().trim();
+            return partyStr === 'rep' || 
+                   partyStr === 'republican' || 
+                   partyStr === 'r' ||
+                   partyStr.includes('rep');
+        }
+
+        // Improved point counting with better party detection
         function countPointsInSelection() {
             console.log('=== COUNTING POINTS IN SELECTION ===');
             
             if (!pointData || selectedFeatures.length === 0) {
                 console.log('No point data or no selected features');
-                return { dem: 0, rep: 0, total: 0 };
+                return { dem: 0, rep: 0, total: 0, unknown: 0 };
             }
 
             console.log(`Selected polygons: ${selectedFeatures.length}`);
@@ -822,6 +849,7 @@
 
             let demCount = 0;
             let repCount = 0;
+            let unknownCount = 0;
             let pointsInside = 0;
             let debugCount = 0;
 
@@ -843,22 +871,27 @@
                         const party = point.properties.party;
                         
                         // Debug first few matches
-                        if (debugCount < 5) {
+                        if (debugCount < 10) {
                             console.log(`Point ${pointIndex} INSIDE polygon ${i}:`, {
                                 coordinates: [lat, lng],
                                 party: party,
-                                partyType: typeof party
+                                partyType: typeof party,
+                                isDem: isDemocratic(party),
+                                isRep: isRepublican(party)
                             });
                             debugCount++;
                         }
                         
-                        // Count by party
-                        if (party === 'Dem' || party === 'DEM' || party === 'Democrat' || party === 'Democratic' || party === 'D') {
+                        // Count by party using improved detection
+                        if (isDemocratic(party)) {
                             demCount++;
-                        } else if (party === 'Rep' || party === 'REP' || party === 'Republican' || party === 'R') {
+                        } else if (isRepublican(party)) {
                             repCount++;
                         } else {
-                            console.log(`Unknown party: "${party}"`);
+                            unknownCount++;
+                            if (debugCount < 5) {
+                                console.log(`Unknown party: "${party}"`);
+                            }
                         }
                         
                         break; // Found in one polygon, don't need to check others
@@ -866,31 +899,31 @@
                 }
             });
 
-            console.log(`RESULTS: Points inside: ${pointsInside}, Dem: ${demCount}, Rep: ${repCount}`);
+            console.log(`RESULTS: Points inside: ${pointsInside}, Dem: ${demCount}, Rep: ${repCount}, Unknown: ${unknownCount}`);
             
             // If no points found, debug the first polygon and first few points
-            if (pointsInside === 0) {
+            if (pointsInside === 0 && selectedFeatures.length > 0) {
                 console.log('=== NO POINTS FOUND - DEBUGGING ===');
                 
-                if (selectedFeatures.length > 0) {
-                    const firstPolygon = selectedFeatures[0].feature;
-                    console.log('First polygon geometry:', firstPolygon.geometry);
-                    
-                    const bounds = getPolygonBounds(firstPolygon);
-                    console.log('First polygon bounds:', bounds);
-                }
+                const firstPolygon = selectedFeatures[0].feature;
+                console.log('First polygon geometry type:', firstPolygon.geometry.type);
                 
-                // Check first few points
-                pointData.features.slice(0, 3).forEach((point, i) => {
+                const bounds = getPolygonBounds(firstPolygon);
+                console.log('First polygon bounds:', bounds);
+                
+                // Check first few points against first polygon
+                pointData.features.slice(0, 5).forEach((point, i) => {
                     const [lng, lat] = point.geometry.coordinates;
-                    console.log(`Point ${i}: [${lat}, ${lng}] party="${point.properties.party}"`);
+                    const isInside = isPointInPolygonRobust(lat, lng, firstPolygon);
+                    console.log(`Point ${i}: [${lat}, ${lng}] party="${point.properties.party}" inside=${isInside}`);
                 });
             }
 
             return {
                 dem: demCount,
                 rep: repCount,
-                total: demCount + repCount
+                total: demCount + repCount,
+                unknown: unknownCount
             };
         }
 
@@ -1625,7 +1658,7 @@
             }
         }
 
-        // Update summary
+        // Update summary with improved point count display
         function updateSummary() {
             const summaryContent = document.getElementById('summaryContent');
             
@@ -1642,22 +1675,51 @@
                 <span class="summary-value">${selectedFeatures.length}</span>
             </div>`;
             
-            // Add point counts
-            html += `<div class="summary-item">
-                <span class="summary-label">Democrats:</span>
-                <span class="summary-value" style="color: #0066cc;">${pointCounts.dem}</span>
+            // Prominently display point counts with party colors
+            html += `<div style="background: rgba(0,102,204,0.1); padding: 8px; border-radius: 5px; margin: 8px 0; border-left: 4px solid #0066cc;">
+                <div class="summary-item" style="margin: 3px 0;">
+                    <span class="summary-label">🔵 Democrats:</span>
+                    <span class="summary-value" style="color: #0066cc; font-size: 14px; font-weight: bold;">${pointCounts.dem}</span>
+                </div>
+            </div>`;
+            
+            html += `<div style="background: rgba(204,0,0,0.1); padding: 8px; border-radius: 5px; margin: 8px 0; border-left: 4px solid #cc0000;">
+                <div class="summary-item" style="margin: 3px 0;">
+                    <span class="summary-label">🔴 Republicans:</span>
+                    <span class="summary-value" style="color: #cc0000; font-size: 14px; font-weight: bold;">${pointCounts.rep}</span>
+                </div>
             </div>`;
             
             html += `<div class="summary-item">
-                <span class="summary-label">Republicans:</span>
-                <span class="summary-value" style="color: #cc0000;">${pointCounts.rep}</span>
-            </div>`;
-            
-            html += `<div class="summary-item">
-                <span class="summary-label">Total Points:</span>
+                <span class="summary-label">Total Voters:</span>
                 <span class="summary-value">${pointCounts.total}</span>
             </div>`;
             
+            if (pointCounts.unknown > 0) {
+                html += `<div class="summary-item">
+                    <span class="summary-label">Unknown Party:</span>
+                    <span class="summary-value" style="color: #666;">${pointCounts.unknown}</span>
+                </div>`;
+            }
+            
+            // Add percentage breakdown if we have voters
+            if (pointCounts.total > 0) {
+                const demPct = ((pointCounts.dem / pointCounts.total) * 100).toFixed(1);
+                const repPct = ((pointCounts.rep / pointCounts.total) * 100).toFixed(1);
+                
+                html += `<div style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 5px; margin: 8px 0;">
+                    <div class="summary-item" style="margin: 3px 0;">
+                        <span class="summary-label">Democratic %:</span>
+                        <span class="summary-value" style="color: #0066cc;">${demPct}%</span>
+                    </div>
+                    <div class="summary-item" style="margin: 3px 0;">
+                        <span class="summary-label">Republican %:</span>
+                        <span class="summary-value" style="color: #cc0000;">${repPct}%</span>
+                    </div>
+                </div>`;
+            }
+            
+            // Add precinct-level aggregated data
             Object.entries(aggregated).forEach(([key, value]) => {
                 let displayValue;
                 if (key.includes('_pct') || key.includes('_Pct')) {
